@@ -16,11 +16,12 @@ O projeto também foi desenvolvido para praticar a construção de APIs com Node
 
 ## Demonstração ou consumo da API
 
+- **API em produção:** [https://minha-api-lih7.onrender.com](https://minha-api-lih7.onrender.com)
 - **Repositório da API:** [https://github.com/tharciosantos/devlinks-api](https://github.com/tharciosantos/devlinks-api)
 - **Aplicação front-end em produção:** [https://devlinks-web-api.vercel.app/](https://devlinks-web-api.vercel.app/)
 - **Repositório do front-end:** [https://github.com/tharciosantos/devlinks-web](https://github.com/tharciosantos/devlinks-web)
 
-A API é consumida pelo DevLinks Web. A URL pública do back-end não está documentada neste repositório.
+A API está publicada no Render e é consumida pela aplicação DevLinks Web em produção.
 
 ### Endpoints disponíveis
 
@@ -226,7 +227,6 @@ O script `npm test` existente no `package.json` é apenas o placeholder padrão 
 - **Planejado:** corrigir e padronizar o arquivo `.env.example`.
 - **Planejado:** documentar exemplos de requisição e resposta dos endpoints.
 - **Planejado:** adicionar um script de execução para produção.
-- **Planejado:** documentar a URL pública da API quando ela estiver disponível.
 
 ## Autor
 
