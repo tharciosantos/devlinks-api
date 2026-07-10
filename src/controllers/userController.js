@@ -25,7 +25,8 @@ export const cadastrarUsuario = async (req, res, next) => {
         }
 
         const newUser = await User.create({ name, email, password });
-        return res.status(201).json(newUser);
+        const { password: _, ...userSemSenha } = newUser.toObject();
+        return res.status(201).json(userSemSenha);
 
     } catch (error) {
         error.message = "Erro ao adicionar o usuário.";
@@ -37,6 +38,13 @@ export const cadastrarUsuario = async (req, res, next) => {
 export const deletarUsuario = async (req, res, next) => {
     try {
         const { id } = req.params;
+
+        if (id !== req.usuarioId) {
+            const error = new Error("Acesso negado. Você não pode excluir este usuário.");
+            error.status = 403;
+            return next(error);
+        }
+
         const deletedUser = await User.findByIdAndDelete(id);
 
         if (!deletedUser) {
@@ -58,19 +66,28 @@ export const editarUsuario = async (req, res, next) => {
         const { id } = req.params;
         const { name, email, password } = req.body;
 
-        const editedUser = await User.findByIdAndUpdate(
-            id,
-            { name, email, password },
-            { new: true }
-        );
+        if (id !== req.usuarioId) {
+            const error = new Error("Acesso negado. Você não pode alterar este usuário.");
+            error.status = 403;
+            return next(error);
+        }
 
-        if (!editedUser) {
+        const usuario = await User.findById(id);
+
+        if (!usuario) {
             const error = new Error("Usuário não encontrado para edição.");
             error.status = 404;
             return next(error);
         }
 
-        res.json({ message: "Usuário alterado com sucesso.", usuario: editedUser });
+        if (name) usuario.name = name;
+        if (email) usuario.email = email;
+        if (password) usuario.password = password;
+
+        await usuario.save();
+
+        const { password: _, ...userSemSenha } = usuario.toObject();
+        res.json({ message: "Usuário alterado com sucesso.", usuario: userSemSenha });
     } catch (error) {
         error.message = "Erro técnico ao tentar editar o usuário.";
         error.status = 500;
