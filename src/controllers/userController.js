@@ -64,7 +64,7 @@ export const deletarUsuario = async (req, res, next) => {
 export const editarUsuario = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { name, email, password } = req.body;
+        const { name, email, password, profession } = req.body;
 
         if (id !== req.usuarioId) {
             const error = new Error("Acesso negado. Você não pode alterar este usuário.");
@@ -83,6 +83,7 @@ export const editarUsuario = async (req, res, next) => {
         if (name) usuario.name = name;
         if (email) usuario.email = email;
         if (password) usuario.password = password;
+        if (profession !== undefined) usuario.profession = profession;
 
         await usuario.save();
 
@@ -247,7 +248,7 @@ export const deletarLink = async (req, res, next) => {
 export const pegarPerfilPublico = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const usuario = await User.findById(id).select("name avatar links");
+        const usuario = await User.findById(id).select("name avatar profession links");
 
         if (!usuario) {
             const error = new Error("Perfil não encontrado.");

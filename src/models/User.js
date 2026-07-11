@@ -9,6 +9,10 @@ const userSchema = new mongoose.Schema({
         type: String,
         default: ""
     },
+    profession: {
+        type: String,
+        default: ""
+    },
     links: [{
         titulo: { type: String, required: true },
         url: { type: String, required: true }
