@@ -39,7 +39,7 @@ export const deletarUsuario = async (req, res, next) => {
     try {
         const { id } = req.params;
 
-        if (id !== req.usuarioId) {
+        if (String(id) !== String(req.usuarioId)) {
             const error = new Error("Acesso negado. Você não pode excluir este usuário.");
             error.status = 403;
             return next(error);
@@ -55,6 +55,11 @@ export const deletarUsuario = async (req, res, next) => {
 
         res.json({ message: "Usuário excluído com sucesso." });
     } catch (error) {
+        if (error.name === "CastError") {
+            const err = new Error("Identificador inválido.");
+            err.status = 400;
+            return next(err);
+        }
         error.message = "Erro técnico ao tentar excluir o usuário.";
         error.status = 500;
         next(error);
@@ -66,7 +71,7 @@ export const editarUsuario = async (req, res, next) => {
         const { id } = req.params;
         const { name, email, password, profession } = req.body;
 
-        if (id !== req.usuarioId) {
+        if (String(id) !== String(req.usuarioId)) {
             const error = new Error("Acesso negado. Você não pode alterar este usuário.");
             error.status = 403;
             return next(error);
@@ -80,9 +85,18 @@ export const editarUsuario = async (req, res, next) => {
             return next(error);
         }
 
-        if (name) usuario.name = name;
-        if (email) usuario.email = email;
-        if (password) usuario.password = password;
+        if (email && email !== usuario.email) {
+            const emailExistente = await User.findOne({ email });
+            if (emailExistente && String(emailExistente._id) !== String(usuario._id)) {
+                const error = new Error("Este e-mail já está em uso por outro usuário.");
+                error.status = 400;
+                return next(error);
+            }
+            usuario.email = email;
+        }
+
+        if (name !== undefined) usuario.name = name;
+        if (password !== undefined) usuario.password = password;
         if (profession !== undefined) usuario.profession = profession;
 
         await usuario.save();
@@ -90,6 +104,11 @@ export const editarUsuario = async (req, res, next) => {
         const { password: _, ...userSemSenha } = usuario.toObject();
         res.json({ message: "Usuário alterado com sucesso.", usuario: userSemSenha });
     } catch (error) {
+        if (error.name === "CastError") {
+            const err = new Error("Identificador inválido.");
+            err.status = 400;
+            return next(err);
+        }
         error.message = "Erro técnico ao tentar editar o usuário.";
         error.status = 500;
         next(error);
@@ -116,10 +135,11 @@ export const loginUsuario = async (req, res, next) => {
             return next(error);
         }
 
+        const expiresIn = process.env.JWT_EXPIRES || '1h';
         const token = jwt.sign(
             { id: user._id },
             process.env.JWT_SECRET,
-            { expiresIn: '1h' }
+            { expiresIn }
         );
 
         res.status(200).json({
@@ -146,7 +166,7 @@ export const uploadFoto = async (req, res, next) => {
         const usuarioAtualizado = await User.findByIdAndUpdate(
             req.usuarioId,
             { avatar: linkDaFoto },
-            { new: true }
+            { returnDocument: 'after' }
         );
 
         if (!usuarioAtualizado) {
@@ -189,16 +209,10 @@ export const adicionarLink = async (req, res, next) => {
     try {
         const { titulo, url } = req.body;
 
-        if (!titulo || !url) {
-            const error = new Error("Título e URL são obrigatórios.");
-            error.status = 400;
-            return next(error);
-        }
-
         const usuarioAtualizado = await User.findByIdAndUpdate(
             req.usuarioId,
             { $push: { links: { titulo, url } } },
-            { new: true }
+            { returnDocument: 'after' }
         ).select("-password");
 
         if (!usuarioAtualizado) {
@@ -226,7 +240,7 @@ export const deletarLink = async (req, res, next) => {
         const usuarioAtualizado = await User.findByIdAndUpdate(
             req.usuarioId,
             { $pull: { links: { _id: idLink } } },
-            { new: true }
+            { returnDocument: 'after' }
         ).select("-password");
 
         if (!usuarioAtualizado) {
@@ -239,9 +253,14 @@ export const deletarLink = async (req, res, next) => {
         });
 
     } catch (error) {
+        if (error.name === "CastError") {
+            const err = new Error("Identificador inválido.");
+            err.status = 400;
+            return next(err);
+        }
         error.message = "Erro ao excluir o link.";
         error.status = 500;
-        next(error)
+        next(error);
     }
 }
 
@@ -258,6 +277,11 @@ export const pegarPerfilPublico = async (req, res, next) => {
 
         res.json(usuario);
     } catch (error) {
+        if (error.name === "CastError") {
+            const err = new Error("Identificador inválido.");
+            err.status = 400;
+            return next(err);
+        }
         error.message = "Erro ao carregar o perfil.";
         error.status = 500;
         next(error);
