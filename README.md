@@ -4,15 +4,15 @@ API back-end do projeto DevLinks, responsável pelo cadastro e autenticação de
 
 ## Status do projeto
 
-**Em evolução como projeto de estudo.**
+**Em evolução como projeto de portfólio (nível júnior/pleno).**
 
-Os fluxos principais utilizados pelo DevLinks Web estão implementados. O projeto ainda possui melhorias planejadas relacionadas a testes, validação, documentação e controle de acesso.
+Os fluxos principais consumidos pelo DevLinks Web estão implementados, com validação de entrada via schemas Zod, controle de acesso e autorização por ownership, testes automatizados e hash seguro de senhas.
 
 ## Objetivo do projeto
 
 O DevLinks API foi criado para fornecer os recursos de back-end da aplicação DevLinks Web. A API permite que usuários criem uma conta, façam login, gerenciem os links exibidos no perfil e enviem uma imagem de avatar.
 
-O projeto também foi desenvolvido para praticar a construção de APIs com Node.js e Express, persistência de dados NoSQL, autenticação com JWT, uso de middlewares e integração com um serviço externo de armazenamento de imagens.
+O projeto também foi desenvolvido para praticar a construção de APIs robustas com Node.js e Express, persistência de dados NoSQL com MongoDB/Mongoose, autenticação com JWT e bcrypt, validação de dados com Zod, suíte de testes de integração com Vitest e integração com o Cloudinary.
 
 ## Demonstração ou consumo da API
 
@@ -30,9 +30,9 @@ A API está publicada no Render e é consumida pela aplicação DevLinks Web em 
 | Método | Rota | Descrição |
 | --- | --- | --- |
 | `GET` | `/` | Retorna uma mensagem indicando que a API está respondendo. |
-| `POST` | `/usuario` | Cadastra um usuário. |
-| `POST` | `/login` | Valida as credenciais e retorna um token JWT. |
-| `GET` | `/p/:id` | Retorna nome, avatar e links de um perfil público. |
+| `POST` | `/usuario` | Cadastra um usuário (validação Zod: nome min 2, email válido, senha min 6). |
+| `POST` | `/login` | Valida credenciais e retorna um token JWT com expiração configurável (`JWT_EXPIRES`). |
+| `GET` | `/p/:id` | Retorna nome, avatar, profissão e links de um perfil público. |
 
 #### Rotas protegidas por JWT
 
@@ -44,93 +44,78 @@ Authorization: Bearer <token>
 
 | Método | Rota | Descrição |
 | --- | --- | --- |
-| `GET` | `/meu-perfil` | Retorna o perfil associado ao token. |
-| `PUT` | `/usuario/:id` | Atualiza nome, e-mail e senha do usuário informado. |
-| `DELETE` | `/usuario/:id` | Exclui o usuário informado. |
-| `PATCH` | `/usuario/foto` | Envia uma imagem e atualiza o avatar do usuário autenticado. |
-| `POST` | `/usuario/link` | Adiciona um link ao perfil do usuário autenticado. |
-| `DELETE` | `/usuario/link/:idLink` | Remove um link do perfil do usuário autenticado. |
+| `GET` | `/meu-perfil` | Retorna o perfil associado ao token (sem o campo `password`). |
+| `PUT` | `/usuario/:id` | Atualiza dados cadastrais (`name`, `email`, `password`, `profession`). Exige autorização de ownership (`id === req.usuarioId`). |
+| `DELETE` | `/usuario/:id` | Exclui o usuário. Exige autorização de ownership (`id === req.usuarioId`). |
+| `PATCH` | `/usuario/foto` | Envia uma imagem multipart e atualiza o avatar do usuário autenticado no Cloudinary. |
+| `POST` | `/usuario/link` | Adiciona um link (`titulo` e `url` válida) ao perfil do usuário autenticado. |
+| `DELETE` | `/usuario/link/:idLink` | Remove um link do perfil do usuário autenticado pelo identificador do link. |
 
-> As rotas `PUT /usuario/:id` e `DELETE /usuario/:id` exigem autenticação, mas a implementação atual ainda não compara o `id` da URL com o identificador extraído do token. Dessa forma, possuir um token válido não garante que a operação esteja limitada ao próprio cadastro do usuário autenticado.
-
-> A atualização de senha pela rota `PUT /usuario/:id` ainda não aciona o hook de hash definido no model, pois utiliza uma atualização direta do Mongoose. Esse fluxo precisa ser revisto antes de ser tratado como uma alteração segura de senha.
-
-## Funcionalidades implementadas
+## Funcionalidades e segurança implementadas
 
 ### Usuários e autenticação
 
-- Cadastro de usuário com nome, e-mail e senha.
-- Verificação de e-mail já cadastrado.
-- Hash da senha de novos usuários com bcrypt antes da gravação no banco.
-- Login com e-mail e senha.
-- Geração de token JWT com duração fixa de uma hora.
-- Middleware para validar o token das rotas privadas.
-- Consulta do perfil associado ao usuário autenticado sem retornar a senha.
-- Atualização e exclusão de usuários por identificador.
+- **Cadastro de usuário**: validação com Zod e verificação de duplicidade de e-mail antes da inserção.
+- **Hash de senhas**: geração de hash com bcrypt via hook `pre('save')` tanto no cadastro quanto na atualização de senha via `.save()`.
+- **Proteção de senhas**: o campo `password` nunca é exposto nas respostas da API (usando projeções e sanitização de objetos).
+- **Login e JWT**: autenticação com credenciais e geração de token assinado, com suporte a expiração dinâmica via variável de ambiente `JWT_EXPIRES` (com fallback para `1h`).
+- **Autorização e Ownership**: nas rotas `PUT /usuario/:id` e `DELETE /usuario/:id`, a comparação entre o identificador do parâmetro e o identificador do token é normalizada como `String`, bloqueando tentativas de acesso de outros usuários com status `403 Forbidden`.
+- **Validação de e-mail na edição**: se o e-mail for modificado na rota de edição, a API verifica se ele já pertence a outro usuário antes de salvar.
+- **Proteção de payload restrito**: a rota de edição aceita estritamente apenas os campos permitidos (`name`, `email`, `password`, `profession`), rejeitando alterações indevidas de `avatar` ou `links`.
+- **Rate Limiting**: limite de tentativas aplicado nas rotas de login e cadastro com `express-rate-limit` (desativado automaticamente no ambiente de testes).
 
 ### Perfis e links
 
-- Perfil público acessível pelo identificador do usuário.
-- Armazenamento dos links como subdocumentos no documento do usuário.
-- Adição de links com título e URL.
-- Remoção de links pelo identificador do subdocumento.
+- Perfil público acessível por identificador contendo nome, avatar, profissão e links.
+- Gerenciamento de links associados diretamente ao usuário através do identificador no token JWT.
+- Validação com Zod de título obrigatório e formato válido de URL.
 
 ### Upload de avatar
 
-- Recebimento de imagem com Multer pelo campo `foto`.
-- Envio do arquivo para o Cloudinary.
-- Formatos permitidos: JPG, JPEG, PNG e WebP.
-- Limitação da transformação da imagem para até 500 por 500 pixels.
-- Armazenamento da URL retornada pelo Cloudinary no perfil do usuário.
+- Upload via Multer e Cloudinary (`multer-storage-cloudinary`).
+- Restrição de formatos (JPG, JPEG, PNG, WebP) e redimensionamento automático.
 
-### API e tratamento de erros
+### Tratamento de erros
 
-- Configuração de CORS para o ambiente local do DevLinks Web e para o front-end publicado na Vercel.
-- Leitura de corpos JSON com o Express.
-- Middleware central para respostas de erro.
-- Conexão com o MongoDB por meio do Mongoose.
+- Respostas padronizadas em JSON com mensagens claras de erro.
+- Validações com Zod retornam status `400 Bad Request` com lista detalhada de falhas.
+- Erros de Cast do Mongoose (ObjectId malformado) retornam `400 Bad Request`.
+- Middleware centralizado para tratamento de exceções.
 
 ## Tecnologias utilizadas
 
-### Back-end
-
-- Node.js
-- Express 5
-- CORS
-
-### Banco de dados
-
-- MongoDB
-- Mongoose
-
-### Autenticação
-
-- JSON Web Token (`jsonwebtoken`)
-- bcrypt
-
-### Upload de arquivos
-
-- Multer
-- Cloudinary
-- multer-storage-cloudinary
+- **Runtime:** Node.js (v20+)
+- **Framework:** Express 5
+- **Banco de Dados:** MongoDB com Mongoose
+- **Validação:** Zod
+- **Autenticação:** JSON Web Token (`jsonwebtoken`) e bcrypt
+- **Upload:** Multer, Cloudinary e multer-storage-cloudinary
+- **Segurança:** express-rate-limit, CORS
+- **Testes:** Vitest, Supertest e mongodb-memory-server
 
 ## Estrutura geral do projeto
 
 ```text
 devlinks-api/
-├── index.js                       # Inicialização do Express e conexão com o banco
+├── index.js                       # Ponto de entrada do servidor e inicialização
 ├── src/
+│   ├── app.js                     # Configuração do Express, middlewares e rotas
 │   ├── config/
 │   │   └── upload.js              # Configuração do Multer e Cloudinary
 │   ├── controllers/
-│   │   └── userController.js      # Regras de usuários, autenticação, perfis e links
+│   │   └── userController.js      # Controladores de usuários, links e autenticação
 │   ├── middlewares/
-│   │   └── auth.js                # Validação do token JWT
+│   │   ├── auth.js                # Middleware de validação do token JWT
+│   │   └── validate.js            # Middleware de validação de schemas Zod
 │   ├── models/
-│   │   └── User.js                # Schema de usuário e subdocumentos de links
-│   ├── db.js                      # Conexão com o MongoDB
-│   └── routes.js                  # Definição das rotas públicas e protegidas
-├── .env.example                   # Referência das variáveis de ambiente
+│   │   └── User.js                # Schema e hooks Mongoose do usuário
+│   ├── validations/
+│   │   └── userValidation.js      # Schemas Zod reutilizáveis
+│   ├── db.js                      # Conexão com o banco MongoDB
+│   └── routes.js                  # Mapeamento de rotas e limites
+├── tests/
+│   └── user.test.js               # Suíte de testes automatizados com Vitest
+├── .env.example                   # Modelo limpo de variáveis de ambiente
 └── package.json                   # Dependências e scripts do projeto
 ```
 
@@ -140,10 +125,8 @@ devlinks-api/
 
 - Node.js 20 ou superior
 - npm
-- Instância do MongoDB ou projeto no MongoDB Atlas
-- Conta e credenciais do Cloudinary para utilizar o upload de avatar
-
-O projeto utiliza a opção nativa `--env-file` do Node.js no script de desenvolvimento, por isso é recomendado usar Node.js 20 ou superior.
+- Instância do MongoDB ou MongoDB Atlas
+- Conta do Cloudinary (para upload de avatar)
 
 ### 1. Clone o repositório
 
@@ -160,73 +143,77 @@ npm install
 
 ### 3. Configure as variáveis de ambiente
 
-Crie um arquivo `.env` na raiz do projeto com base nas variáveis listadas na próxima seção.
+Crie um arquivo `.env` na raiz do projeto copiando o modelo de `.env.example`:
 
-> O `.env.example` atual possui uma linha de texto sem comentário antes das variáveis do Cloudinary. Até que esse arquivo seja corrigido, revise essa linha ao usá-lo como referência.
+```bash
+cp .env.example .env
+```
 
-### 4. Inicie a API
+Preencha os valores necessários no `.env`.
+
+### 4. Inicie a API em desenvolvimento
 
 ```bash
 npm run dev
 ```
 
-Por padrão, a API utiliza a porta `3000`. A variável `PORT` pode ser definida pelo ambiente de hospedagem para alterar essa porta.
+Por padrão a API roda na porta `3000` (ou na definida em `PORT`).
 
 ## Variáveis de ambiente
 
-Não publique valores reais ou credenciais no repositório.
+| Variável | Descrição | Exemplo |
+| --- | --- | --- |
+| `MONGO_URL` | String de conexão com o MongoDB | `mongodb+srv://...` |
+| `JWT_SECRET` | Chave secreta para assinar os tokens JWT | `sua_chave_secreta` |
+| `JWT_EXPIRES` | Tempo de expiração do JWT (opcional, padrão: `1h`) | `1h`, `7d`, `24h` |
+| `CLOUDINARY_CLOUD_NAME` | Cloud Name da conta Cloudinary | `meu_cloud` |
+| `CLOUDINARY_API_KEY` | Chave de API do Cloudinary | `1234567890` |
+| `CLOUDINARY_API_SECRET` | Segredo de API do Cloudinary | `abcdef12345` |
+| `PORT` | Porta HTTP da aplicação (opcional, padrão: `3000`) | `3000` |
 
-| Variável | Finalidade |
-| --- | --- |
-| `MONGO_URL` | String de conexão com o MongoDB. |
-| `JWT_SECRET` | Chave usada para assinar e validar os tokens JWT. |
-| `JWT_EXPIRES` | Está presente no `.env.example`, mas ainda não é utilizada pelo código. A expiração atual está definida como uma hora no controller. |
-| `CLOUDINARY_CLOUD_NAME` | Nome da conta ou cloud do Cloudinary. |
-| `CLOUDINARY_API_KEY` | Chave de API do Cloudinary. |
-| `CLOUDINARY_API_SECRET` | Segredo da API do Cloudinary. |
-| `PORT` | Porta da API. É opcional, utiliza `3000` como padrão e é lida pelo código, embora não esteja listada no `.env.example` atual. |
-
-Exemplo sem valores sensíveis:
+Exemplo de `.env.example`:
 
 ```env
-MONGO_URL=
-JWT_SECRET=
-JWT_EXPIRES=
-CLOUDINARY_CLOUD_NAME=
-CLOUDINARY_API_KEY=
-CLOUDINARY_API_SECRET=
+MONGO_URL=mongodb+srv://<seu_usuario>:<sua_senha>@<seu_cluster>.mongodb.net/<seu_banco>?appName=<seu_app>
+JWT_SECRET=sua_chave_secreta_jwt
+JWT_EXPIRES=1h
+CLOUDINARY_CLOUD_NAME=seu_cloud_name_aqui
+CLOUDINARY_API_KEY=sua_api_key_aqui
+CLOUDINARY_API_SECRET=sua_api_secret_aqui
 PORT=3000
 ```
 
-## Testes
+## Testes automatizados
 
-O projeto ainda não possui uma suíte de testes automatizados.
+A API conta com uma suíte de testes de integração automatizados utilizando **Vitest**, **Supertest** e **mongodb-memory-server** (não requer conexão com banco externo).
 
-O script `npm test` existente no `package.json` é apenas o placeholder padrão e encerra a execução com a mensagem `Error: no test specified`. Portanto, ele não representa testes implementados.
+Cenários cobertos:
+- Cadastro com sucesso (sem retorno de hash de senha).
+- Rejeição de cadastro com e-mail duplicado.
+- Rejeição de payloads inválidos por validação Zod (400).
+- Login com credenciais válidas e retorno do token JWT.
+- Rejeição de login com credenciais incorretas (401).
+- Autorização de ownership: usuário autenticado só edita e deleta o próprio perfil (403 para outros usuários).
+- Verificação de unicidade de e-mail ao editar dados do perfil.
+- Bloqueio de campos restritos ou sensíveis no update (`avatar`, `links`).
+- Adição e remoção de links com validação de formato de URL.
 
-## Aprendizados
+Para executar os testes:
 
-- Criação de uma API HTTP com Node.js e Express.
-- Organização de responsabilidades entre rotas, controllers, middlewares e models.
-- Modelagem de documentos e subdocumentos com MongoDB e Mongoose.
-- Uso dos operadores `$push` e `$pull` para gerenciar links incorporados ao usuário.
-- Hash e comparação de senhas com bcrypt.
-- Geração e validação de tokens JWT.
-- Proteção de rotas por middleware.
-- Upload de arquivos com Multer e Cloudinary.
-- Configuração de CORS para comunicação com o front-end.
-- Tratamento centralizado de erros no Express.
+```bash
+# Executa todos os testes uma vez
+npm test
+
+# Executa os testes em modo watch (re-executa ao salvar arquivos)
+npm run test:watch
+```
 
 ## Próximos passos
 
-- **Planejado:** implementar testes automatizados para autenticação, usuários, links e upload de avatar.
-- **Planejado:** validar se o usuário autenticado pode editar ou excluir o identificador informado na rota.
-- **Planejado:** garantir a aplicação do hash ao atualizar a senha de um usuário.
-- **Planejado:** adicionar validação de dados com schemas reutilizáveis.
-- **Planejado:** utilizar `JWT_EXPIRES` na configuração de expiração do token ou removê-la do ambiente.
-- **Planejado:** corrigir e padronizar o arquivo `.env.example`.
-- **Planejado:** documentar exemplos de requisição e resposta dos endpoints.
-- **Planejado:** adicionar um script de execução para produção.
+- [ ] Implementação de Refresh Tokens e invalidação de sessão (blacklist ou revogação).
+- [ ] Documentação interativa da API com OpenAPI/Swagger.
+- [ ] Configuração de pipeline de CI/CD (GitHub Actions) para execução automática dos testes.
+- [ ] Migração incremental para TypeScript para tipagem estática e maior manutenibilidade.
 
 ## Autor
 
