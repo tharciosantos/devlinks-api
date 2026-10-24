@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import { app } from "../src/app.js";
 import { User } from "../src/models/User.js";
+import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
 let mongoServer;
@@ -174,7 +175,8 @@ describe("DevLinks API - Suíte de Testes", () => {
 
             const userUpdated = await User.findById(user1._id);
             expect(userUpdated.password).not.toBe("novaSenha123");
-            const isMatch = await userUpdated.schema.methods; // bcrypt hash verified
+            const isMatch = await bcrypt.compare("novaSenha123", userUpdated.password);
+            expect(isMatch).toBe(true);
         });
 
         it("não deve permitir que usuário autenticado edite perfil de outro usuário (403)", async () => {

@@ -185,7 +185,7 @@ PORT=3000
 
 ## Testes automatizados
 
-A API conta com uma suíte de testes de integração automatizados utilizando **Vitest**, **Supertest** e **mongodb-memory-server** (não requer conexão com banco externo).
+A API conta com uma suíte de **15 testes de integração automatizados** utilizando **Vitest**, **Supertest** e **mongodb-memory-server** (não requer conexão com banco externo).
 
 Cenários cobertos:
 - Cadastro com sucesso (sem retorno de hash de senha).
@@ -212,7 +212,7 @@ npm run test:watch
 
 - [ ] Implementação de Refresh Tokens e invalidação de sessão (blacklist ou revogação).
 - [ ] Documentação interativa da API com OpenAPI/Swagger.
-- [ ] Configuração de pipeline de CI/CD (GitHub Actions) para execução automática dos testes.
+- [x] Configuração de pipeline de CI/CD (GitHub Actions) para execução automática dos testes.
 - [ ] Migração incremental para TypeScript para tipagem estática e maior manutenibilidade.
 
 ## Autor
