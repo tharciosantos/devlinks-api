@@ -35,7 +35,7 @@ A **DevLinks API** é o back-end RESTful do ecossistema DevLinks (consumido pelo
 
 | Camada | Tecnologia | Versão / Detalhes |
 |--------|-----------|-------------------|
-| **Runtime** | Node.js (ESM `"type": "module"`) | >= 20 |
+| **Runtime** | Node.js (ESM `"type": "module"`) | >= 22.23.4 |
 | **Framework** | Express | 5.2.x |
 | **Banco de Dados** | MongoDB + Mongoose | Mongoose 9.3.x |
 | **Autenticação** | JSON Web Token (`jsonwebtoken`) + `bcrypt` | JWT + salt hash no hook `pre('save')` |
